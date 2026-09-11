@@ -1,0 +1,20 @@
+# Build-Dateien und Binaries
+build/
+bin/
+game
+*.o
+*.out
+
+# macOS Debug-Symbole
+*.dSYM/
+
+# macOS Systemdateien
+.DS_Store
+._*
+
+# Optional: Lokale IDE-Einstellungen
+.vscode/
+
+# Language Server & Clangd Index-Cache
+.cache/
+compile_commands.json
