@@ -24,11 +24,15 @@ int main(void) {
 
     ParticleSystemInit();
 
-    World world;
+    World world = { 0 };
     WorldInit(&world);
 
     Player player;
     PlayerInit(&player, (Vector2){ 80.0f, 380.0f });
+
+    if (FileExists("assets/levels/level1.json")) {
+        WorldLoadFromTiledJSON(&world, &player, "assets/levels/level1.json");
+    }
 
     Camera2D camera = { 0 };
     camera.target = (Vector2){ player.position.x, player.position.y };
@@ -44,8 +48,12 @@ int main(void) {
 
         // Controls
         if (IsKeyPressed(KEY_R)) {
+            WorldUnload(&world);
             WorldInit(&world);
             PlayerInit(&player, (Vector2){ 80.0f, 380.0f });
+            if (FileExists("assets/levels/level1.json")) {
+                WorldLoadFromTiledJSON(&world, &player, "assets/levels/level1.json");
+            }
         }
         if (IsKeyPressed(KEY_F3)) {
             showDebug = !showDebug;
@@ -65,12 +73,12 @@ int main(void) {
         float targetCamY = player.position.y + player.size.y * 0.5f;
 
         float minCamX = SCREEN_WIDTH * 0.5f;
-        float maxCamX = WORLD_WIDTH - SCREEN_WIDTH * 0.5f;
+        float maxCamX = world.worldWidth - SCREEN_WIDTH * 0.5f;
         if (targetCamX < minCamX) targetCamX = minCamX;
         if (targetCamX > maxCamX) targetCamX = maxCamX;
 
         float minCamY = SCREEN_HEIGHT * 0.5f;
-        float maxCamY = WORLD_HEIGHT - SCREEN_HEIGHT * 0.4f;
+        float maxCamY = world.worldHeight - SCREEN_HEIGHT * 0.4f;
         if (targetCamY < minCamY) targetCamY = minCamY;
         if (targetCamY > maxCamY) targetCamY = maxCamY;
 
@@ -81,9 +89,14 @@ int main(void) {
         BeginTextureMode(target);
             ClearBackground((Color){ 16, 24, 40, 255 });
 
+            // Integer pixel snapping eliminates sub-pixel tile rasterizer gaps/flashing
+            Camera2D renderCam = camera;
+            renderCam.target.x = roundf(camera.target.x);
+            renderCam.target.y = roundf(camera.target.y);
+
             // World (Camera space)
-            BeginMode2D(camera);
-                WorldDrawBackground(&world, camera);
+            BeginMode2D(renderCam);
+                WorldDrawBackground(&world, renderCam);
                 WorldDrawForeground(&world, &assets);
                 ParticleSystemDraw();
                 PlayerDraw(&player, &assets);
@@ -118,7 +131,7 @@ int main(void) {
             // Debug info HUD
             if (showDebug) {
                 int panelW = 230;
-                int panelH = 205;
+                int panelH = 225;
                 int panelX = (int)SCREEN_WIDTH - panelW - 15;
                 int panelY = 58;
                 DrawRectangle(panelX, panelY, panelW, panelH, (Color){ 0, 0, 0, 190 });
@@ -134,6 +147,7 @@ int main(void) {
                 DrawText(TextFormat("JumpBuf: %.2fs", player.jumpBufferTimer), panelX + 10, panelY + 136, 13, ORANGE);
                 DrawText(TextFormat("Deaths: %d", player.deathCount), panelX + 10, panelY + 154, 13, (Color){ 231, 76, 60, 255 });
                 DrawText(TextFormat("Sprites: %s", assets.hasPlayerTexture ? "CUSTOM" : "PROCEDURAL"), panelX + 10, panelY + 172, 13, assets.hasPlayerTexture ? GREEN : LIGHTGRAY);
+                DrawText(TextFormat("Tileset: %s", assets.hasTilesetTexture ? "CUSTOM" : "PROCEDURAL"), panelX + 10, panelY + 190, 13, assets.hasTilesetTexture ? GREEN : LIGHTGRAY);
             }
         EndTextureMode();
 
@@ -160,6 +174,7 @@ int main(void) {
 
     // Cleanup resources
     UnloadRenderTexture(target);
+    WorldUnload(&world);
     AssetsUnload(&assets);
     CloseWindow();
     return 0;

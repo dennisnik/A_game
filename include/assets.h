@@ -8,9 +8,11 @@ typedef struct GameAssets {
     Texture2D playerTexture;
     Texture2D coinTexture;
     Texture2D flagTexture;
+    Texture2D tilesetTexture;
     bool hasPlayerTexture;
     bool hasCoinTexture;
     bool hasFlagTexture;
+    bool hasTilesetTexture;
 } GameAssets;
 
 void AssetsInit(GameAssets *assets);

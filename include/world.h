@@ -7,13 +7,12 @@
 typedef struct Player Player;
 typedef struct GameAssets GameAssets;
 
-#define MAX_PLATFORMS 32
-#define MAX_COLLECTIBLES 32
+#define MAX_PLATFORMS 128
+#define MAX_COLLECTIBLES 64
 
 typedef struct {
     Rectangle bounds;
-    Color topColor;
-    Color bodyColor;
+    Color color;
     bool isDanger; // If true, touching causes respawn
 } Platform;
 
@@ -36,9 +35,19 @@ typedef struct World {
     int collectibleCount;
     Goal goal;
     int totalCoins;
+    float worldWidth;
+    float worldHeight;
+    bool loadedFromMap;
+    int mapWidth;
+    int mapHeight;
+    int tileWidth;
+    int tileHeight;
+    int *tileGrid;
 } World;
 
 void WorldInit(World *world);
+void WorldUnload(World *world);
+bool WorldLoadFromTiledJSON(World *world, Player *player, const char *filepath);
 void WorldUpdate(World *world, Player *player, float dt);
 void WorldDrawBackground(const World *world, Camera2D camera);
 void WorldDrawForeground(const World *world, const GameAssets *assets);

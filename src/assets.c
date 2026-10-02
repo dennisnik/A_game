@@ -5,9 +5,11 @@ void AssetsInit(GameAssets *assets) {
     assets->playerTexture = (Texture2D){ 0 };
     assets->coinTexture = (Texture2D){ 0 };
     assets->flagTexture = (Texture2D){ 0 };
+    assets->tilesetTexture = (Texture2D){ 0 };
     assets->hasPlayerTexture = false;
     assets->hasCoinTexture = false;
     assets->hasFlagTexture = false;
+    assets->hasTilesetTexture = false;
 }
 
 void AssetsLoad(GameAssets *assets) {
@@ -43,6 +45,24 @@ void AssetsLoad(GameAssets *assets) {
     } else {
         TraceLog(LOG_INFO, "ASSETS: assets/flag.png not found, using procedural fallback");
     }
+
+    // 4. Platform & Hazard Tileset Sprite
+    const char *tilesetPath = NULL;
+    if (FileExists("assets/levels/tileset.png")) {
+        tilesetPath = "assets/levels/tileset.png";
+    } else if (FileExists("assets/tileset.png")) {
+        tilesetPath = "assets/tileset.png";
+    }
+
+    if (tilesetPath) {
+        assets->tilesetTexture = LoadTexture(tilesetPath);
+        SetTextureFilter(assets->tilesetTexture, TEXTURE_FILTER_POINT);
+        assets->hasTilesetTexture = (assets->tilesetTexture.id > 0);
+        TraceLog(LOG_INFO, "ASSETS: Loaded %s (%dx%d)",
+                 tilesetPath, assets->tilesetTexture.width, assets->tilesetTexture.height);
+    } else {
+        TraceLog(LOG_INFO, "ASSETS: tileset.png not found, using procedural fallback");
+    }
 }
 
 void AssetsUnload(GameAssets *assets) {
@@ -57,5 +77,9 @@ void AssetsUnload(GameAssets *assets) {
     if (assets->hasFlagTexture) {
         UnloadTexture(assets->flagTexture);
         assets->hasFlagTexture = false;
+    }
+    if (assets->hasTilesetTexture) {
+        UnloadTexture(assets->tilesetTexture);
+        assets->hasTilesetTexture = false;
     }
 }

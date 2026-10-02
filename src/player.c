@@ -370,24 +370,8 @@ void PlayerDraw(const Player *player, const GameAssets *assets) {
         Vector2 origin = { 0.0f, 0.0f };
         DrawTexturePro(assets->playerTexture, sourceRec, destRec, origin, 0.0f, WHITE);
     } else {
-        // Fallback: Character body stylish vibrant rounded rectangle
-        Rectangle charRect = { drawX, drawY, drawW, drawH };
-        DrawRectangleRounded(charRect, 0.35f, 6, (Color){ 41, 128, 185, 255 }); // Main body blue
-        DrawRectangleRoundedLines(charRect, 0.35f, 6, (Color){ 52, 152, 219, 255 }); // Bright border
-
-        // Character face / visor based on facing direction
-        float visorWidth = drawW * 0.45f;
-        float visorHeight = drawH * 0.22f;
-        float visorX = (player->facing == 1)
-            ? (drawX + drawW * 0.5f)
-            : (drawX + drawW * 0.08f);
-        float visorY = drawY + drawH * 0.22f;
-
-        Rectangle visorRect = { visorX, visorY, visorWidth, visorHeight };
-        DrawRectangleRounded(visorRect, 0.4f, 4, (Color){ 236, 240, 241, 255 }); // Light visor
-        // Visor glow dot
-        float eyeX = (player->facing == 1) ? (visorX + visorWidth - 5.0f) : (visorX + 5.0f);
-        DrawCircle((int)eyeX, (int)(visorY + visorHeight * 0.5f), 2.5f, (Color){ 46, 204, 113, 255 });
+        // Fallback: Plain solid blue rectangle
+        DrawRectangleRec((Rectangle){ drawX, drawY, drawW, drawH }, (Color){ 59, 130, 246, 255 });
     }
 
     // Visual friction line when wall sliding

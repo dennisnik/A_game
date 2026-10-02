@@ -1,0 +1,3 @@
+# Tiled Automapping Rules
+# This file is used if you want Tiled to automatically place corner/edge tiles while painting.
+# Currently unused - keep empty or add rule map files here when needed.

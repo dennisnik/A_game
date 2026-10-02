@@ -8,27 +8,36 @@ This document provides a detailed breakdown of the directory organization, indiv
 
 ```text
 A-game/
-├── assets/                     # Game assets (sprites, textures, sounds)
+├── assets/                     # Game assets (sprites, textures, sounds, levels)
 │   ├── coin.png                # Collectible coin/gem texture (24x24 px)
 │   ├── player.png              # Player character sprite (32x48 px)
+│   ├── flag.png                # Goal banner flag sprite (40x80 px)
+│   ├── levels/                 # Tiled visual level maps
+│   │   ├── level1.json         # Visual map file (open & edit in Tiled)
+│   │   ├── tileset.png         # 96x32 platform & hazard tileset for Tiled (grass, spike, stone)
+│   │   ├── rules.txt           # Tiled automapping configuration file
+│   │   └── README.md           # Tiled setup, layer guide, and controls
 │   └── README.md               # Asset specifications, recommended sizes, and format guidelines
 │
 ├── include/                    # C header files (.h)
 │   ├── assets.h                # Texture asset manager definitions (load, unload, flags)
 │   ├── common.h                # Shared game constants, physics values, and screen dimensions
+│   ├── json.h                  # Lightweight JSON parser declarations
 │   ├── particles.h             # Particle pool and emitter function declarations
 │   ├── player.h                # Player entity state, input handling, and drawing prototypes
-│   └── world.h                 # Platform geometry, collectibles, goal, and background declarations
+│   └── world.h                 # Platform geometry, Tiled loader, and level layout
 │
 ├── src/                        # C source implementations (.c)
 │   ├── assets.c                # Dynamic texture loading, texture filtering, and VRAM cleanup
+│   ├── json.c                  # Recursive descent JSON parser implementation
 │   ├── main.c                  # Core game loop, 2D camera tracking, HUD, and debug overlay
 │   ├── particles.c             # Particle simulation, alpha fading, and gravity updates
 │   ├── player.c                # Player physics, swept AABB collision, coyote time, and juice
-│   └── world.c                 # World platform layout, collectible updates, and parallax layers
+│   └── world.c                 # Tiled JSON parser/loader, platforms, and parallax layers
 │
 ├── build/                      # Generated build output (ignored by git)
 │   ├── assets.o                # Compiled assets object
+│   ├── json.o                  # Compiled JSON parser object
 │   ├── main.o                  # Compiled main game loop object
 │   ├── particles.o             # Compiled particle system object
 │   ├── player.o                # Compiled player object
@@ -58,8 +67,10 @@ A-game/
 Contains external media resources loaded at runtime.
 - **`player.png`**: Custom 32x48 sprite. Automatically flipped horizontally based on movement direction and distorted by squash/stretch logic.
 - **`coin.png`**: Custom 24x24 sprite. Rendered with procedural bobbing and glowing particles.
+- **`flag.png`**: Custom 40x80 stage goal flag banner sprite.
+- **`levels/tileset.png`**: 96x32 platform & hazard tileset rendered directly for map tiles.
 - **`README.md`**: Guide explaining how to add or swap sprites.
-- *Fallback Mechanism*: If an image is missing, the game falls back to procedural geometric drawing without crashing.
+- *Fallback Mechanism*: If an image is missing, the game falls back to plain solid-color geometric shapes for clean, unmistakable recognition without crashing.
 
 ### 2. `include/` (Headers)
 Declares data types, structs, and function signatures.

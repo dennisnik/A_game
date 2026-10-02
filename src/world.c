@@ -2,20 +2,38 @@
 #include "player.h"
 #include "common.h"
 #include "assets.h"
+#include "json.h"
 #include "raymath.h"
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
-void WorldInit(World *world) {
+// Plain solid fallback colors for platforms when no tileset texture is loaded
+static const Color FALLBACK_GRASS  = (Color){ 34, 197, 94, 255 };   // Plain green
+static const Color FALLBACK_DANGER = (Color){ 239, 68, 68, 255 };   // Plain red
+static const Color FALLBACK_STONE  = (Color){ 100, 116, 139, 255 };  // Plain stone slate grey
+
+void WorldInitDefault(World *world) {
+    if (world->tileGrid) {
+        free(world->tileGrid);
+        world->tileGrid = NULL;
+    }
+    world->mapWidth = 0;
+    world->mapHeight = 0;
+    world->tileWidth = 32;
+    world->tileHeight = 32;
     world->platformCount = 0;
     world->collectibleCount = 0;
     world->totalCoins = 0;
+    world->worldWidth = WORLD_WIDTH;
+    world->worldHeight = WORLD_HEIGHT;
+    world->loadedFromMap = false;
 
     // Helper macro to add platform
-    #define ADD_PLATFORM(px, py, pw, ph, topCol, bodyCol, danger) \
+    #define ADD_PLATFORM(px, py, pw, ph, col, danger) \
         if (world->platformCount < MAX_PLATFORMS) { \
             world->platforms[world->platformCount].bounds = (Rectangle){ px, py, pw, ph }; \
-            world->platforms[world->platformCount].topColor = topCol; \
-            world->platforms[world->platformCount].bodyColor = bodyCol; \
+            world->platforms[world->platformCount].color = col; \
             world->platforms[world->platformCount].isDanger = danger; \
             world->platformCount++; \
         }
@@ -31,47 +49,40 @@ void WorldInit(World *world) {
             world->totalCoins++; \
         }
 
-    Color grassTop   = (Color){ 46, 204, 113, 255 };  // Emerald green
-    Color dirtBody   = (Color){ 44, 62, 80, 255 };    // Deep dark slate
-    Color stoneTop   = (Color){ 52, 152, 219, 255 };  // Cyan / light slate
-    Color stoneBody  = (Color){ 33, 47, 61, 255 };    // Dark midnight stone
-    Color dangerTop  = (Color){ 231, 76, 60, 255 };   // Crimson hazard
-    Color dangerBody = (Color){ 120, 40, 31, 255 };
-
     // --- Platforms Layout ---
     // 1. Starting Ground
-    ADD_PLATFORM(0, 460, 480, 140, grassTop, dirtBody, false);
+    ADD_PLATFORM(0, 460, 480, 140, FALLBACK_GRASS, false);
 
     // 2. Stepping stone platforms over First Gap
-    ADD_PLATFORM(280, 370, 110, 22, stoneTop, stoneBody, false);
-    ADD_PLATFORM(440, 300, 110, 22, stoneTop, stoneBody, false);
+    ADD_PLATFORM(280, 370, 110, 22, FALLBACK_STONE, false);
+    ADD_PLATFORM(440, 300, 110, 22, FALLBACK_STONE, false);
 
     // 3. Second Ground
-    ADD_PLATFORM(560, 460, 360, 140, grassTop, dirtBody, false);
-    ADD_PLATFORM(640, 360, 120, 22, stoneTop, stoneBody, false);
-    ADD_PLATFORM(790, 280, 120, 22, stoneTop, stoneBody, false);
+    ADD_PLATFORM(560, 460, 360, 140, FALLBACK_GRASS, false);
+    ADD_PLATFORM(640, 360, 120, 22, FALLBACK_STONE, false);
+    ADD_PLATFORM(790, 280, 120, 22, FALLBACK_STONE, false);
 
     // 4. Wall-Jump Chimney Shaft & Fortress
-    ADD_PLATFORM(980, 420, 420, 180, grassTop, dirtBody, false);
+    ADD_PLATFORM(980, 420, 420, 180, FALLBACK_GRASS, false);
     // Vertical Wall-Jump Shaft (Climb back and forth to reach the high summit!)
-    ADD_PLATFORM(1010, 180, 32, 240, stoneTop, stoneBody, false);  // Left wall
-    ADD_PLATFORM(1106, 180, 32, 240, stoneTop, stoneBody, false);  // Right wall (64px gap)
-    ADD_PLATFORM(990, 150, 160, 24, stoneTop, stoneBody, false);   // Summit platform
-    ADD_PLATFORM(1240, 250, 110, 22, stoneTop, stoneBody, false);
-    ADD_PLATFORM(1370, 330, 100, 22, stoneTop, stoneBody, false);
+    ADD_PLATFORM(1010, 180, 32, 240, FALLBACK_STONE, false);  // Left wall
+    ADD_PLATFORM(1106, 180, 32, 240, FALLBACK_STONE, false);  // Right wall (64px gap)
+    ADD_PLATFORM(990, 150, 160, 24, FALLBACK_STONE, false);   // Summit platform
+    ADD_PLATFORM(1240, 250, 110, 22, FALLBACK_STONE, false);
+    ADD_PLATFORM(1370, 330, 100, 22, FALLBACK_STONE, false);
 
     // 5. Hazard Lava Bed in Pit
-    ADD_PLATFORM(1450, 570, 430, 30, dangerTop, dangerBody, true);
+    ADD_PLATFORM(1450, 570, 430, 30, FALLBACK_DANGER, true);
 
     // 6. Tall Floating Wall Pillars across the Hazard (Enables wall-sliding & clutch wall-jump recoveries)
-    ADD_PLATFORM(1530, 330, 50, 170, stoneTop, stoneBody, false);
-    ADD_PLATFORM(1670, 260, 50, 240, stoneTop, stoneBody, false);
-    ADD_PLATFORM(1810, 200, 50, 300, stoneTop, stoneBody, false);
+    ADD_PLATFORM(1530, 330, 50, 170, FALLBACK_STONE, false);
+    ADD_PLATFORM(1670, 260, 50, 240, FALLBACK_STONE, false);
+    ADD_PLATFORM(1810, 200, 50, 300, FALLBACK_STONE, false);
 
     // 7. Victory Plateau
-    ADD_PLATFORM(1960, 430, 640, 170, grassTop, dirtBody, false);
-    ADD_PLATFORM(2080, 330, 130, 24, stoneTop, stoneBody, false);
-    ADD_PLATFORM(2240, 240, 120, 24, stoneTop, stoneBody, false);
+    ADD_PLATFORM(1960, 430, 640, 170, FALLBACK_GRASS, false);
+    ADD_PLATFORM(2080, 330, 130, 24, FALLBACK_STONE, false);
+    ADD_PLATFORM(2240, 240, 120, 24, FALLBACK_STONE, false);
 
     // --- Collectibles (Coins/Gems) ---
     ADD_COIN(330, 330);
@@ -90,6 +101,205 @@ void WorldInit(World *world) {
     // --- Goal Banner ---
     world->goal.bounds = (Rectangle){ 2460.0f, 350.0f, 40.0f, 80.0f };
     world->goal.reached = false;
+}
+
+static bool StringContainsCase(const char *haystack, const char *needle) {
+    if (!haystack || !needle) return false;
+    size_t nlen = strlen(needle);
+    size_t hlen = strlen(haystack);
+    if (nlen > hlen) return false;
+    for (size_t i = 0; i <= hlen - nlen; i++) {
+        if (strncasecmp(haystack + i, needle, nlen) == 0) return true;
+    }
+    return false;
+}
+
+static int IdentifyEntityType(const char *name, int gid, const JsonValue *root) {
+    // 1. Check object name
+    if (name && *name) {
+        if (StringContainsCase(name, "player")) return 1; // Player
+        if (StringContainsCase(name, "coin") || StringContainsCase(name, "gem")) return 2; // Coin
+        if (StringContainsCase(name, "goal") || StringContainsCase(name, "flag")) return 3; // Goal
+    }
+
+    // 2. Check GID by looking up the image associated with the tile in tilesets
+    if (gid > 0 && root) {
+        JsonValue *tilesets = JsonObjectGetArray(root, "tilesets");
+        if (tilesets) {
+            JsonElement *tsElem = tilesets->arrHead;
+            while (tsElem) {
+                int firstgid = (int)JsonObjectGetNumber(tsElem->value, "firstgid", 0);
+                JsonValue *tilesArr = JsonObjectGetArray(tsElem->value, "tiles");
+                if (tilesArr && gid >= firstgid) {
+                    JsonElement *tElem = tilesArr->arrHead;
+                    while (tElem) {
+                        int tid = (int)JsonObjectGetNumber(tElem->value, "id", -1);
+                        if (firstgid + tid == gid) {
+                            const char *img = JsonObjectGetString(tElem->value, "image", "");
+                            if (StringContainsCase(img, "player")) return 1;
+                            if (StringContainsCase(img, "coin")) return 2;
+                            if (StringContainsCase(img, "flag")) return 3;
+                        }
+                        tElem = tElem->next;
+                    }
+                }
+                tsElem = tsElem->next;
+            }
+        }
+    }
+    return 0; // Unknown
+}
+
+bool WorldLoadFromTiledJSON(World *world, Player *player, const char *filepath) {
+    if (!FileExists(filepath)) return false;
+
+    char *fileText = LoadFileText(filepath);
+    if (!fileText) return false;
+
+    JsonValue *root = JsonParse(fileText);
+    UnloadFileText(fileText);
+    if (!root || root->type != JSON_OBJECT) {
+        if (root) JsonFree(root);
+        return false;
+    }
+
+    int mapW = (int)JsonObjectGetNumber(root, "width", 80);
+    int mapH = (int)JsonObjectGetNumber(root, "height", 20);
+    int tileW = (int)JsonObjectGetNumber(root, "tilewidth", 32);
+    int tileH = (int)JsonObjectGetNumber(root, "tileheight", 32);
+
+    if (world->tileGrid) {
+        free(world->tileGrid);
+        world->tileGrid = NULL;
+    }
+    world->mapWidth = mapW;
+    world->mapHeight = mapH;
+    world->tileWidth = tileW;
+    world->tileHeight = tileH;
+    world->tileGrid = (int *)calloc(mapW * mapH, sizeof(int));
+
+    world->worldWidth = (float)(mapW * tileW);
+    world->worldHeight = (float)(mapH * tileH);
+    world->platformCount = 0;
+    world->collectibleCount = 0;
+    world->totalCoins = 0;
+
+    JsonValue *layersArr = JsonObjectGetArray(root, "layers");
+    if (layersArr) {
+        JsonElement *layerElem = layersArr->arrHead;
+        while (layerElem) {
+            JsonValue *layer = layerElem->value;
+            const char *layerType = JsonObjectGetString(layer, "type", "");
+
+            if (strcmp(layerType, "tilelayer") == 0) {
+                JsonValue *dataArr = JsonObjectGetArray(layer, "data");
+                if (dataArr && world->tileGrid) {
+                    int idx = 0;
+                    JsonElement *dElem = dataArr->arrHead;
+                    while (dElem && idx < mapW * mapH) {
+                        if (dElem->value->type == JSON_NUMBER) {
+                            world->tileGrid[idx] = (int)dElem->value->numVal;
+                        }
+                        idx++;
+                        dElem = dElem->next;
+                    }
+
+                    // Coalesce horizontal tiles of the same type into single rectangles for collision
+                    for (int y = 0; y < mapH; y++) {
+                        for (int x = 0; x < mapW; x++) {
+                            int tileVal = world->tileGrid[y * mapW + x];
+                            if (tileVal > 0) {
+                                int startX = x;
+                                while (x + 1 < mapW && world->tileGrid[y * mapW + (x + 1)] == tileVal) {
+                                    x++;
+                                }
+                                int span = x - startX + 1;
+                                if (world->platformCount < MAX_PLATFORMS) {
+                                    Platform *p = &world->platforms[world->platformCount++];
+                                    p->bounds = (Rectangle){
+                                        (float)(startX * tileW),
+                                        (float)(y * tileH),
+                                        (float)(span * tileW),
+                                        (float)tileH
+                                    };
+                                    p->isDanger = (tileVal == 2);
+                                    if (p->isDanger) {
+                                        p->color = FALLBACK_DANGER;
+                                    } else if (tileVal == 3) {
+                                        p->color = FALLBACK_STONE;
+                                    } else {
+                                        p->color = FALLBACK_GRASS;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (strcmp(layerType, "objectgroup") == 0) {
+                JsonValue *objsArr = JsonObjectGetArray(layer, "objects");
+                if (objsArr) {
+                    JsonElement *objElem = objsArr->arrHead;
+                    while (objElem) {
+                        JsonValue *obj = objElem->value;
+                        const char *name = JsonObjectGetString(obj, "name", "");
+                        float ox = (float)JsonObjectGetNumber(obj, "x", 0);
+                        float oy = (float)JsonObjectGetNumber(obj, "y", 0);
+                        float ow = (float)JsonObjectGetNumber(obj, "width", 32);
+                        float oh = (float)JsonObjectGetNumber(obj, "height", 32);
+                        int gid = (int)JsonObjectGetNumber(obj, "gid", 0);
+
+                        // In Tiled, objects with a tile 'gid' are anchored at the bottom-left
+                        if (gid > 0) {
+                            oy -= oh;
+                        }
+
+                        int entityType = IdentifyEntityType(name, gid, root);
+                        if (entityType == 1) { // Player Start
+                            if (player) {
+                                player->position = (Vector2){ ox, oy };
+                                player->respawnPos = (Vector2){ ox, oy };
+                            }
+                        } else if (entityType == 2) { // Coin
+                            if (world->collectibleCount < MAX_COLLECTIBLES) {
+                                Collectible *c = &world->collectibles[world->collectibleCount++];
+                                c->position = (Vector2){ ox + ow * 0.5f, oy + oh * 0.5f };
+                                c->radius = 12.0f;
+                                c->collected = false;
+                                c->animOffset = (float)(world->collectibleCount * 0.8f);
+                                world->totalCoins++;
+                            }
+                        } else if (entityType == 3) { // Goal Flag
+                            world->goal.bounds = (Rectangle){ ox, oy, ow > 0 ? ow : 40.0f, oh > 0 ? oh : 80.0f };
+                            world->goal.reached = false;
+                        }
+
+                        objElem = objElem->next;
+                    }
+                }
+            }
+
+            layerElem = layerElem->next;
+        }
+    }
+
+    JsonFree(root);
+    world->loadedFromMap = true;
+    TraceLog(LOG_INFO, "TILED: Loaded map '%s' (%dx%d tiles, %d platforms, %d coins)",
+             filepath, mapW, mapH, world->platformCount, world->totalCoins);
+    return true;
+}
+
+void WorldInit(World *world) {
+    if (!world) return;
+    memset(world, 0, sizeof(World));
+    WorldInitDefault(world);
+}
+
+void WorldUnload(World *world) {
+    if (world->tileGrid) {
+        free(world->tileGrid);
+        world->tileGrid = NULL;
+    }
 }
 
 void WorldUpdate(World *world, Player *player, float dt) {
@@ -135,26 +345,48 @@ void WorldDrawBackground(const World *world, Camera2D camera) {
 }
 
 void WorldDrawForeground(const World *world, const GameAssets *assets) {
-    // 1. Draw Platforms
-    for (int i = 0; i < world->platformCount; i++) {
-        Rectangle r = world->platforms[i].bounds;
-        Color bodyColor = world->platforms[i].bodyColor;
-        Color topColor  = world->platforms[i].topColor;
+    // 1. Draw Platforms / Level Tiles
+    if (assets && assets->hasTilesetTexture && world->tileGrid) {
+        int tileW = world->tileWidth > 0 ? world->tileWidth : 32;
+        int tileH = world->tileHeight > 0 ? world->tileHeight : 32;
+        int cols = assets->tilesetTexture.width / tileW;
+        if (cols <= 0) cols = 1;
 
-        // Platform Main Body
-        DrawRectangleRec(r, bodyColor);
+        // Solid underlay behind platform bounds prevents background mountains/sky from flashing through tile seams
+        for (int i = 0; i < world->platformCount; i++) {
+            DrawRectangleRec(world->platforms[i].bounds, world->platforms[i].color);
+        }
 
-        // Platform Top Highlight Strip (Grass/Edge)
-        float topThickness = (r.height < 30.0f) ? 5.0f : 8.0f;
-        DrawRectangle((int)r.x, (int)r.y, (int)r.width, (int)topThickness, topColor);
+        for (int y = 0; y < world->mapHeight; y++) {
+            for (int x = 0; x < world->mapWidth; x++) {
+                int tileVal = world->tileGrid[y * world->mapWidth + x];
+                if (tileVal <= 0) continue;
 
-        // Platform subtle bevel line
-        DrawLine((int)r.x, (int)(r.y + topThickness), (int)(r.x + r.width), (int)(r.y + topThickness), (Color){ 0, 0, 0, 50 });
+                int tileIdx = tileVal - 1; // 0-indexed tile id in tileset
+                int col = tileIdx % cols;
+                int row = tileIdx / cols;
 
-        // Hazard indicator glow
-        if (world->platforms[i].isDanger) {
-            float pulse = (sinf((float)GetTime() * 6.0f) + 1.0f) * 0.5f;
-            DrawRectangleLinesEx(r, 2.0f, (Color){ 255, 100, 100, (unsigned char)(120 + 80 * pulse) });
+                Rectangle srcRec = {
+                    (float)(col * tileW),
+                    (float)(row * tileH),
+                    (float)tileW,
+                    (float)tileH
+                };
+                Rectangle destRec = {
+                    (float)(x * tileW),
+                    (float)(y * tileH),
+                    (float)tileW,
+                    (float)tileH
+                };
+
+                DrawTexturePro(assets->tilesetTexture, srcRec, destRec, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
+            }
+        }
+    } else {
+        // Procedural Fallback: Plain solid one-colored platform rectangles
+        for (int i = 0; i < world->platformCount; i++) {
+            Rectangle r = world->platforms[i].bounds;
+            DrawRectangleRec(r, world->platforms[i].color);
         }
     }
 
@@ -167,19 +399,16 @@ void WorldDrawForeground(const World *world, const GameAssets *assets) {
         float bobY = sinf(time * 3.5f + c->animOffset) * 4.0f;
         Vector2 pos = { c->position.x, c->position.y + bobY };
 
-        // Outer glow
-        DrawCircleV(pos, c->radius + 4.0f, (Color){ 241, 196, 15, 60 });
-
         if (assets && assets->hasCoinTexture) {
+            // Outer subtle glow
+            DrawCircleV(pos, c->radius + 4.0f, (Color){ 241, 196, 15, 60 });
             Rectangle sourceRec = { 0.0f, 0.0f, (float)assets->coinTexture.width, (float)assets->coinTexture.height };
             float size = c->radius * 2.0f;
             Rectangle destRec = { pos.x - c->radius, pos.y - c->radius, size, size };
             DrawTexturePro(assets->coinTexture, sourceRec, destRec, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
         } else {
-            // Procedural coin body (diamond / circle)
-            DrawCircleV(pos, c->radius, (Color){ 241, 196, 15, 255 });
-            // Coin inner highlight
-            DrawCircleV((Vector2){ pos.x - 2.0f, pos.y - 2.0f }, c->radius * 0.45f, (Color){ 255, 243, 176, 255 });
+            // Fallback: Plain yellow circle
+            DrawCircleV(pos, c->radius, (Color){ 250, 204, 21, 255 });
         }
     }
 
@@ -189,17 +418,8 @@ void WorldDrawForeground(const World *world, const GameAssets *assets) {
         Rectangle sourceRec = { 0.0f, 0.0f, (float)assets->flagTexture.width, (float)assets->flagTexture.height };
         DrawTexturePro(assets->flagTexture, sourceRec, g, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
     } else {
-        // Procedural Flag: Pole
-        DrawRectangle((int)g.x, (int)g.y, 6, (int)g.height, (Color){ 189, 195, 199, 255 });
-        // Flag banner
-        Color flagColor = world->goal.reached ? (Color){ 46, 204, 113, 255 } : (Color){ 231, 76, 60, 255 };
-        float waveOffset = sinf(time * 4.0f) * 3.0f;
-        Vector2 p1 = { g.x + 6, g.y };
-        Vector2 p2 = { g.x + 6, g.y + 34.0f };
-        Vector2 p3 = { g.x + 36.0f + waveOffset, g.y + 17.0f };
-        DrawTriangle(p1, p2, p3, flagColor);
-
-        // Goal base
-        DrawRectangle((int)(g.x - 6), (int)(g.y + g.height - 4), 18, 6, (Color){ 127, 140, 141, 255 });
+        // Fallback: Plain solid colored banner (red normally, green when reached)
+        Color flagColor = world->goal.reached ? (Color){ 34, 197, 94, 255 } : (Color){ 239, 68, 68, 255 };
+        DrawRectangleRec(g, flagColor);
     }
 }
