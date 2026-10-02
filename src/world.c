@@ -51,19 +51,22 @@ void WorldInit(World *world) {
     ADD_PLATFORM(640, 360, 120, 22, stoneTop, stoneBody, false);
     ADD_PLATFORM(790, 280, 120, 22, stoneTop, stoneBody, false);
 
-    // 4. Elevated Middle Fortress
+    // 4. Wall-Jump Chimney Shaft & Fortress
     ADD_PLATFORM(980, 420, 420, 180, grassTop, dirtBody, false);
-    ADD_PLATFORM(1050, 320, 110, 22, stoneTop, stoneBody, false);
-    ADD_PLATFORM(1200, 230, 120, 22, stoneTop, stoneBody, false);
-    ADD_PLATFORM(1360, 320, 110, 22, stoneTop, stoneBody, false);
+    // Vertical Wall-Jump Shaft (Climb back and forth to reach the high summit!)
+    ADD_PLATFORM(1010, 180, 32, 240, stoneTop, stoneBody, false);  // Left wall
+    ADD_PLATFORM(1106, 180, 32, 240, stoneTop, stoneBody, false);  // Right wall (64px gap)
+    ADD_PLATFORM(990, 150, 160, 24, stoneTop, stoneBody, false);   // Summit platform
+    ADD_PLATFORM(1240, 250, 110, 22, stoneTop, stoneBody, false);
+    ADD_PLATFORM(1370, 330, 100, 22, stoneTop, stoneBody, false);
 
     // 5. Hazard Lava Bed in Pit
-    ADD_PLATFORM(1440, 570, 420, 30, dangerTop, dangerBody, true);
+    ADD_PLATFORM(1450, 570, 430, 30, dangerTop, dangerBody, true);
 
-    // 6. Floating Pillars across the Hazard
-    ADD_PLATFORM(1520, 420, 80, 24, stoneTop, stoneBody, false);
-    ADD_PLATFORM(1660, 340, 80, 24, stoneTop, stoneBody, false);
-    ADD_PLATFORM(1800, 260, 80, 24, stoneTop, stoneBody, false);
+    // 6. Tall Floating Wall Pillars across the Hazard (Enables wall-sliding & clutch wall-jump recoveries)
+    ADD_PLATFORM(1530, 330, 50, 170, stoneTop, stoneBody, false);
+    ADD_PLATFORM(1670, 260, 50, 240, stoneTop, stoneBody, false);
+    ADD_PLATFORM(1810, 200, 50, 300, stoneTop, stoneBody, false);
 
     // 7. Victory Plateau
     ADD_PLATFORM(1960, 430, 640, 170, grassTop, dirtBody, false);
@@ -75,12 +78,12 @@ void WorldInit(World *world) {
     ADD_COIN(490, 260);
     ADD_COIN(700, 320);
     ADD_COIN(850, 240);
-    ADD_COIN(1100, 280);
-    ADD_COIN(1260, 190);
-    ADD_COIN(1410, 280);
-    ADD_COIN(1560, 380);
-    ADD_COIN(1700, 300);
-    ADD_COIN(1840, 220);
+    ADD_COIN(1070, 110); // Summit bonus gem above the wall-jump shaft!
+    ADD_COIN(1270, 200);
+    ADD_COIN(1400, 280);
+    ADD_COIN(1555, 280);
+    ADD_COIN(1695, 210);
+    ADD_COIN(1835, 150);
     ADD_COIN(2140, 290);
     ADD_COIN(2300, 200);
 

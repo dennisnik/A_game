@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -Wall -Wextra -Iinclude -I/opt/homebrew/opt/raylib/include
+CFLAGS = -Wall -Wextra -MMD -MP -Iinclude -I/opt/homebrew/opt/raylib/include
 LDFLAGS = -L/opt/homebrew/opt/raylib/lib -lraylib -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo
 
 SRCDIR = src
@@ -8,6 +8,7 @@ BUILDDIR = build
 
 SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(SRCS))
+DEPS = $(OBJS:.o=.d)
 TARGET = game
 
 all: $(BUILDDIR) $(TARGET)
@@ -20,6 +21,8 @@ $(TARGET): $(OBJS)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+-include $(DEPS)
 
 clean:
 	rm -rf $(BUILDDIR) $(TARGET)

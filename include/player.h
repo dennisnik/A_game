@@ -18,10 +18,18 @@ typedef struct Player {
     float coyoteTimer;
     float jumpBufferTimer;
     
+    // Wall Slide & Wall Jump state
+    bool isWallSliding;
+    int wallDirection;        // -1: wall on left, +1: wall on right, 0: none
+    int lastWallDirection;    // Cached for wall coyote time
+    float wallCoyoteTimer;    // Window to wall jump after leaving wall
+    float wallJumpLockTimer;  // Input lock right after wall jumping
+
     int facing;          // -1 (left) or 1 (right)
     Vector2 stretch;     // (x, y) scale factors for juice squash/stretch
     
     int score;
+    int deathCount;
     bool reachedGoal;
 } Player;
 

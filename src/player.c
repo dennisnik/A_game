@@ -22,9 +22,17 @@ void PlayerInit(Player *player, Vector2 startPos) {
     player->isJumping = false;
     player->coyoteTimer = 0.0f;
     player->jumpBufferTimer = 0.0f;
+
+    player->isWallSliding = false;
+    player->wallDirection = 0;
+    player->lastWallDirection = 0;
+    player->wallCoyoteTimer = 0.0f;
+    player->wallJumpLockTimer = 0.0f;
+
     player->facing = 1;
     player->stretch = (Vector2){ 1.0f, 1.0f };
     player->score = 0;
+    player->deathCount = 0;
     player->reachedGoal = false;
 }
 
@@ -35,39 +43,52 @@ void PlayerRespawn(Player *player) {
     player->isJumping = false;
     player->coyoteTimer = 0.0f;
     player->jumpBufferTimer = 0.0f;
+
+    player->isWallSliding = false;
+    player->wallDirection = 0;
+    player->lastWallDirection = 0;
+    player->wallCoyoteTimer = 0.0f;
+    player->wallJumpLockTimer = 0.0f;
+
     player->stretch = (Vector2){ 1.0f, 1.0f };
+    player->deathCount++;
     ParticleSpawnBurst(player->position, 16, (Color){ 64, 150, 255, 255 }, 50.0f, 120.0f, 0.4f);
 }
 
 void PlayerUpdate(Player *player, World *world, float dt) {
-    // 1. Horizontal Input & Acceleration / Deceleration
+    // 1. Horizontal Input & Wall Jump Lockout
     int moveInput = 0;
     if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) moveInput += 1;
     if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))  moveInput -= 1;
 
-    if (moveInput != 0) {
-        player->facing = moveInput;
-    }
-
-    float targetSpeed = moveInput * MOVE_SPEED;
-    float accel = player->onGround ? GROUND_ACCEL : AIR_ACCEL;
-    float friction = player->onGround ? GROUND_FRICTION : AIR_DRAG;
-
-    if (moveInput != 0) {
-        if (player->velocity.x < targetSpeed) {
-            player->velocity.x += accel * dt;
-            if (player->velocity.x > targetSpeed) player->velocity.x = targetSpeed;
-        } else if (player->velocity.x > targetSpeed) {
-            player->velocity.x -= accel * dt;
-            if (player->velocity.x < targetSpeed) player->velocity.x = targetSpeed;
-        }
+    if (player->wallJumpLockTimer > 0.0f) {
+        player->wallJumpLockTimer -= dt;
+        // During lock timer, we don't allow counter-steering back toward the wall
     } else {
-        if (player->velocity.x > 0.0f) {
-            player->velocity.x -= friction * dt;
-            if (player->velocity.x < 0.0f) player->velocity.x = 0.0f;
-        } else if (player->velocity.x < 0.0f) {
-            player->velocity.x += friction * dt;
-            if (player->velocity.x > 0.0f) player->velocity.x = 0.0f;
+        if (moveInput != 0) {
+            player->facing = moveInput;
+        }
+
+        float targetSpeed = moveInput * MOVE_SPEED;
+        float accel = player->onGround ? GROUND_ACCEL : AIR_ACCEL;
+        float friction = player->onGround ? GROUND_FRICTION : AIR_DRAG;
+
+        if (moveInput != 0) {
+            if (player->velocity.x < targetSpeed) {
+                player->velocity.x += accel * dt;
+                if (player->velocity.x > targetSpeed) player->velocity.x = targetSpeed;
+            } else if (player->velocity.x > targetSpeed) {
+                player->velocity.x -= accel * dt;
+                if (player->velocity.x < targetSpeed) player->velocity.x = targetSpeed;
+            }
+        } else {
+            if (player->velocity.x > 0.0f) {
+                player->velocity.x -= friction * dt;
+                if (player->velocity.x < 0.0f) player->velocity.x = 0.0f;
+            } else if (player->velocity.x < 0.0f) {
+                player->velocity.x += friction * dt;
+                if (player->velocity.x > 0.0f) player->velocity.x = 0.0f;
+            }
         }
     }
 
@@ -86,13 +107,72 @@ void PlayerUpdate(Player *player, World *world, float dt) {
         }
     }
 
-    // 2. Vertical Physics (Gravity & Limits)
-    player->velocity.y += GRAVITY * dt;
-    if (player->velocity.y > GRAVITY_LIMIT) {
-        player->velocity.y = GRAVITY_LIMIT;
+    // 2. Wall Detection Probes (Left & Right)
+    int touchingWall = 0;
+    if (!player->onGround) {
+        Rectangle leftProbe = { player->position.x - 3.0f, player->position.y + 6.0f, 3.0f, player->size.y - 12.0f };
+        Rectangle rightProbe = { player->position.x + player->size.x, player->position.y + 6.0f, 3.0f, player->size.y - 12.0f };
+
+        for (int i = 0; i < world->platformCount; i++) {
+            if (world->platforms[i].isDanger) continue;
+            Rectangle plat = world->platforms[i].bounds;
+            if (CheckAABB(leftProbe, plat)) {
+                touchingWall = -1;
+                break;
+            }
+            if (CheckAABB(rightProbe, plat)) {
+                touchingWall = 1;
+                break;
+            }
+        }
     }
 
-    // 3. Coyote Time & Jump Buffering
+    // Wall slide state & coyote timer
+    if (touchingWall != 0 && !player->onGround) {
+        player->wallDirection = touchingWall;
+        player->lastWallDirection = touchingWall;
+        player->wallCoyoteTimer = WALL_COYOTE_TIME;
+
+        // Wall slide is active if falling
+        if (player->velocity.y > 0.0f) {
+            player->isWallSliding = true;
+            if (player->velocity.y > WALL_SLIDE_SPEED) {
+                player->velocity.y = WALL_SLIDE_SPEED;
+            }
+
+            // Wall slide friction dust
+            static float wallDustTimer = 0.0f;
+            wallDustTimer += dt;
+            if (wallDustTimer > 0.09f) {
+                wallDustTimer = 0.0f;
+                Vector2 wallDustPos = {
+                    (touchingWall == 1) ? player->position.x + player->size.x : player->position.x,
+                    player->position.y + player->size.y * 0.7f
+                };
+                Vector2 wallDustVel = { -touchingWall * 20.0f, -15.0f };
+                ParticleSpawn(wallDustPos, wallDustVel, (Color){ 220, 220, 220, 160 }, 3.0f, 0.22f);
+            }
+        } else {
+            player->isWallSliding = false;
+        }
+    } else {
+        player->isWallSliding = false;
+        player->wallDirection = 0;
+        if (player->wallCoyoteTimer > 0.0f) {
+            player->wallCoyoteTimer -= dt;
+            if (player->wallCoyoteTimer < 0.0f) player->wallCoyoteTimer = 0.0f;
+        }
+    }
+
+    // 3. Vertical Physics (Gravity & Limits)
+    if (!player->isWallSliding) {
+        player->velocity.y += GRAVITY * dt;
+        if (player->velocity.y > GRAVITY_LIMIT) {
+            player->velocity.y = GRAVITY_LIMIT;
+        }
+    }
+
+    // 4. Coyote Time & Jump Buffering
     if (player->onGround) {
         player->coyoteTimer = COYOTE_TIME;
     } else {
@@ -108,21 +188,46 @@ void PlayerUpdate(Player *player, World *world, float dt) {
         if (player->jumpBufferTimer < 0.0f) player->jumpBufferTimer = 0.0f;
     }
 
-    // Execute Jump if buffered and allowed by ground or coyote timer
-    if (player->jumpBufferTimer > 0.0f && player->coyoteTimer > 0.0f) {
-        player->velocity.y = -JUMP_FORCE;
-        player->onGround = false;
-        player->isJumping = true;
-        player->coyoteTimer = 0.0f;
-        player->jumpBufferTimer = 0.0f;
-        player->stretch = (Vector2){ 0.75f, 1.30f }; // Vertical stretch
+    // 5. Jump Execution: Standard Ground Jump OR Wall Jump!
+    if (player->jumpBufferTimer > 0.0f) {
+        if (player->onGround || player->coyoteTimer > 0.0f) {
+            // Normal Ground Jump
+            player->velocity.y = -JUMP_FORCE;
+            player->onGround = false;
+            player->isJumping = true;
+            player->coyoteTimer = 0.0f;
+            player->jumpBufferTimer = 0.0f;
+            player->stretch = (Vector2){ 0.75f, 1.30f }; // Vertical stretch
 
-        // Jump dust burst at feet
-        Vector2 feetPos = { player->position.x + player->size.x * 0.5f, player->position.y + player->size.y };
-        ParticleSpawnBurst(feetPos, 7, (Color){ 220, 220, 220, 220 }, 25.0f, 85.0f, 0.28f);
+            Vector2 feetPos = { player->position.x + player->size.x * 0.5f, player->position.y + player->size.y };
+            ParticleSpawnBurst(feetPos, 7, (Color){ 220, 220, 220, 220 }, 25.0f, 85.0f, 0.28f);
+        } else if (player->wallDirection != 0 || player->wallCoyoteTimer > 0.0f) {
+            // Wall Jump!
+            int jumpWall = (player->wallDirection != 0) ? player->wallDirection : player->lastWallDirection;
+
+            player->velocity.x = -jumpWall * WALL_JUMP_FORCE_X;
+            player->velocity.y = -WALL_JUMP_FORCE_Y;
+            player->onGround = false;
+            player->isJumping = true;
+            player->isWallSliding = false;
+            player->wallDirection = 0;
+            player->wallCoyoteTimer = 0.0f;
+            player->jumpBufferTimer = 0.0f;
+            player->coyoteTimer = 0.0f;
+            player->facing = -jumpWall; // Face away from wall
+            player->wallJumpLockTimer = WALL_JUMP_LOCK_TIME;
+            player->stretch = (Vector2){ 0.70f, 1.35f };
+
+            // Wall kick dust burst
+            Vector2 kickPos = {
+                (jumpWall == 1) ? player->position.x + player->size.x : player->position.x,
+                player->position.y + player->size.y * 0.5f
+            };
+            ParticleSpawnBurst(kickPos, 9, (Color){ 220, 220, 220, 220 }, 35.0f, 110.0f, 0.26f);
+        }
     }
 
-    // 4. Variable Jump Height: Cut upward velocity early on key release
+    // 6. Variable Jump Height: Cut upward velocity early on key release
     if ((IsKeyReleased(KEY_SPACE) || IsKeyReleased(KEY_UP) || IsKeyReleased(KEY_W)) && player->velocity.y < -50.0f) {
         player->velocity.y *= JUMP_RELEASE_DAMPING;
     }
@@ -283,5 +388,13 @@ void PlayerDraw(const Player *player, const GameAssets *assets) {
         // Visor glow dot
         float eyeX = (player->facing == 1) ? (visorX + visorWidth - 5.0f) : (visorX + 5.0f);
         DrawCircle((int)eyeX, (int)(visorY + visorHeight * 0.5f), 2.5f, (Color){ 46, 204, 113, 255 });
+    }
+
+    // Visual friction line when wall sliding
+    if (player->isWallSliding && player->wallDirection != 0) {
+        float edgeX = (player->wallDirection == 1) ? (player->position.x + player->size.x) : player->position.x;
+        DrawLineEx((Vector2){ edgeX, player->position.y + 4.0f },
+                   (Vector2){ edgeX, player->position.y + player->size.y - 4.0f },
+                   2.0f, (Color){ 241, 196, 15, 200 });
     }
 }

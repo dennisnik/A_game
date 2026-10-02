@@ -64,18 +64,18 @@ Contains external media resources loaded at runtime.
 ### 2. `include/` (Headers)
 Declares data types, structs, and function signatures.
 - **`assets.h`**: Declares `struct GameAssets` with `Texture2D` handles and initialization/cleanup routines.
-- **`common.h`**: Defines screen dimensions (`800x450`), world boundaries (`2600x600`), and physics tuning constants (`GRAVITY`, `JUMP_FORCE`, `COYOTE_TIME`, etc.).
+- **`common.h`**: Defines screen dimensions (`800x450`), world boundaries (`2600x600`), and physics tuning constants (`GRAVITY`, `JUMP_FORCE`, `WALL_SLIDE_SPEED`, `WALL_JUMP_FORCE_X/Y`, `COYOTE_TIME`, etc.).
 - **`particles.h`**: Declares `Particle` struct and burst/spawn functions.
-- **`player.h`**: Defines `Player` struct (position, velocity, timers, squash/stretch factors) and update/draw functions.
+- **`player.h`**: Defines `Player` struct (position, velocity, timers, wall-sliding state, wall-coyote timers, squash/stretch factors, deaths) and update/draw functions.
 - **`world.h`**: Defines `Platform`, `Collectible`, `Goal`, and `World` structs.
 
 ### 3. `src/` (Implementations)
 Contains the executable logic for each subsystem.
 - **`assets.c`**: Implements safe loading with `FileExists()`, sets `TEXTURE_FILTER_POINT` for crisp pixel art, and handles GPU VRAM unloading.
-- **`main.c`**: Initializes the Raylib window, manages 2D camera interpolation (`Camera2D`) with world bounds clamping, handles reset (<kbd>R</kbd>) and debug overlay (<kbd>F3</kbd>).
-- **`particles.c`**: Updates and renders an array of 128 particles for jump puffs, landing impacts, and gem pickup sparkles.
-- **`player.c`**: Implements ground/air acceleration, variable jump cancellation, coyote time, jump buffering, and separate-axis swept AABB collisions.
-- **`world.c`**: Sets up platform layouts, hazard beds, collectibles, goal banner, and multi-layer parallax backgrounds.
+- **`main.c`**: Initializes the Raylib window with resizable & fullscreen support, manages virtual render target (`RenderTexture2D`) with aspect-ratio letterboxing, 2D camera interpolation (`Camera2D`), deaths & score HUD, reset (<kbd>R</kbd>), fullscreen toggle (<kbd>F</kbd>/<kbd>F11</kbd>), and debug overlay (<kbd>F3</kbd>).
+- **`particles.c`**: Updates and renders an array of 128 particles for jump puffs, wall kicks, landing impacts, and gem pickup sparkles.
+- **`player.c`**: Implements ground/air acceleration, wall sliding friction, wall jump impulse with input lockout, variable jump cancellation, coyote times, jump buffering, and separate-axis swept AABB collisions.
+- **`world.c`**: Sets up platform layouts with wall-jump vertical shafts, floating pillar recoveries, hazard beds, collectibles, goal banner, and multi-layer parallax backgrounds.
 
 ### 4. Build & Tooling
 - **`makefile`**: Compiles all `.c` files in `src/` into `build/*.o` and links with Raylib and macOS frameworks into the executable `./game`.
